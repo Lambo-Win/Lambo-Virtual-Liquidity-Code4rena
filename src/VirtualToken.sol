@@ -75,8 +75,8 @@ contract VirtualToken is ERC20, Ownable {
         } else {
             _transferAssetFromUser(amount);
         }        
-        _mint(msg.sender, msg.value);
-        emit CashIn(msg.sender, msg.value);
+        _mint(msg.sender, amount);
+        emit CashIn(msg.sender, amount);
     }
 
     function cashOut(uint256 amount) external onlyWhiteListed {
