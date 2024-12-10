@@ -43,7 +43,8 @@ contract LamboVEthRouter is Ownable, ReentrancyGuard {
         string memory name, 
         string memory tickname,
         uint256 virtualLiquidityAmount,
-        uint256 buyAmount
+        uint256 buyAmount,
+        bytes32 salt
     ) 
         public 
         payable 
@@ -54,6 +55,7 @@ contract LamboVEthRouter is Ownable, ReentrancyGuard {
         (quoteToken, pool) = LamboFactory(lamboFactory).createLaunchPad(
             name, 
             tickname, 
+            salt,
             virtualLiquidityAmount, 
             address(vETH)
         );

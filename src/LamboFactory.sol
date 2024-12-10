@@ -47,9 +47,9 @@ contract LamboFactory is Ownable, ReentrancyGuard {
         emit VTokenWhiteListRemoved(virtualLiquidityToken);
     }
 
-    function _deployLamboToken(string memory name, string memory tickname) internal returns (address quoteToken) {
+    function _deployLamboToken(string memory name, string memory tickname, bytes32 salt) internal returns (address quoteToken) {
         // Create a deterministic clone of the LamboToken implementation
-        quoteToken = Clones.clone(lamboTokenImplementation);
+        quoteToken = Clones.cloneDeterministic(lamboTokenImplementation, salt);
 
         // Initialize the cloned LamboToken
         LamboToken(quoteToken).initialize(name, tickname);
@@ -60,10 +60,11 @@ contract LamboFactory is Ownable, ReentrancyGuard {
     function createLaunchPad(
         string memory name,
         string memory tickname,
+        bytes32 salt,
         uint256 virtualLiquidityAmount,
         address virtualLiquidityToken
     ) public onlyWhiteListed(virtualLiquidityToken) nonReentrant returns (address quoteToken, address pool) {
-        quoteToken = _deployLamboToken(name, tickname);
+        quoteToken = _deployLamboToken(name, tickname, salt);
         pool = IPoolFactory(LaunchPadUtils.UNISWAP_POOL_FACTORY_).createPair(virtualLiquidityToken, quoteToken);
 
         VirtualToken(virtualLiquidityToken).takeLoan(pool, virtualLiquidityAmount);

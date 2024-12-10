@@ -31,26 +31,31 @@ contract GeneralTest is BaseTest {
         vm.startPrank(NewMultiSigAdmin);
         factory.removeVTokenWhiteList(address(vETH));
         factory.addVTokenWhiteList(address(vETH));
-        (address quoteToken, address pool) = factory.createLaunchPad("LamboToken", "LAMBO", 10 ether, address(vETH));
-        (address quoteToken2, address pool2) = factory.createLaunchPad("LamboToken", "LAMBO", 10 ether, address(vETH));
+        bytes32 salt = bytes32(vm.randomUint());
+        (address quoteToken, address pool) = factory.createLaunchPad("LamboToken", "LAMBO", salt, 10 ether, address(vETH));
+
+        bytes32 salt1 = bytes32(vm.randomUint());
+        (address quoteToken2, address pool2) = factory.createLaunchPad("LamboToken", "LAMBO", salt1, 10 ether, address(vETH));
  
         vm.stopPrank();
     }
 
     function test_createLaunchPad_exceeding_100ETH() public {
-
         vm.expectRevert("Loan limit per block exceeded");
-        factory.createLaunchPad("LamboToken", "LAMBO", 300 ether + 1, address(vETH));
+        bytes32 salt = bytes32(vm.randomUint());
+        factory.createLaunchPad("LamboToken", "LAMBO", salt, 300 ether + 1, address(vETH));
 
         vm.roll(block.number + 1);
+        bytes32 salt1 = bytes32(vm.randomUint());
 
-        factory.createLaunchPad("LamboToken", "LAMBO", 300 ether, address(vETH));
+        factory.createLaunchPad("LamboToken", "LAMBO", salt1, 300 ether, address(vETH));
         
     }
     
     // vETH <-> Meme into Uniswap
     function test_createLaunchPad_with_virtual_token_and_buy_sell() public {
-        (address quoteToken, address pool) = factory.createLaunchPad("LamboToken", "LAMBO", 10 ether, address(vETH));
+        bytes32 salt = bytes32(vm.randomUint());
+        (address quoteToken, address pool) = factory.createLaunchPad("LamboToken", "LAMBO", salt, 10 ether, address(vETH));
         
         uint256 amountQuoteOut = lamboRouter.getBuyQuote(quoteToken, 10 ether);
         uint256 gasStart = gasleft();
@@ -92,7 +97,8 @@ contract GeneralTest is BaseTest {
 
     // vETH <-> Meme into Uniswap
     function test_createLaunchPadWithInitalBuy() public {
-        (address quoteToken, address pool, uint256 amountYOut) = lamboRouter.createLaunchPadAndInitialBuy{value: 10 ether}(address(factory), "LamboToken", "LAMBO", 10 ether, 10 ether);
+        bytes32 salt = bytes32(vm.randomUint());
+        (address quoteToken, address pool, uint256 amountYOut) = lamboRouter.createLaunchPadAndInitialBuy{value: 10 ether}(address(factory), "LamboToken", "LAMBO", 10 ether, 10 ether, salt);
   
         console2.log("amountYOut: ", amountYOut);
         vm.assertEq(IERC20(quoteToken).balanceOf(address(this)), amountYOut);
@@ -106,13 +112,16 @@ contract GeneralTest is BaseTest {
     }
 
     function test_cashIn_and_buyQuote() public {
-        (address quoteToken, address pool) = factory.createLaunchPad("LamboToken", "LAMBO", 10 ether, address(vETH));
+        bytes32 salt = bytes32(vm.randomUint());
+
+        (address quoteToken, address pool) = factory.createLaunchPad("LamboToken", "LAMBO", salt, 10 ether, address(vETH));
         uint256 amountQuoteOut = lamboRouter.getBuyQuote(quoteToken, 10 ether);
         uint256 amountOut = lamboRouter.buyQuote{value: 10 ether}(quoteToken, 10 ether, 0);
-       }
+    }
 
     function test_cashIn_and_sellQuote() public {
-        (address quoteToken, address pool) = factory.createLaunchPad("LamboToken", "LAMBO", 10 ether, address(vETH));
+        bytes32 salt = bytes32(vm.randomUint());
+        (address quoteToken, address pool) = factory.createLaunchPad("LamboToken", "LAMBO", salt, 10 ether, address(vETH));
         uint256 amountQuoteOut = lamboRouter.getBuyQuote(quoteToken, 10 ether);
         uint256 amountOut0 = lamboRouter.buyQuote{value: 10 ether}(quoteToken, 10 ether, 0);
         require(amountOut0 == amountQuoteOut, "getBuyQuote error");

@@ -29,7 +29,8 @@ contract LiquidityManage is BaseTest {
     }
 
     function test_liquidityV3() public {
-        (address quoteToken, address pool) = factory.createLaunchPad("LamboToken", "LAMBO", 10 ether, address(vETH));
+        bytes32 salt = bytes32(vm.randomUint());
+        (address quoteToken, address pool) = factory.createLaunchPad("LamboToken", "LAMBO", salt, 10 ether, address(vETH));
 
         // create VETH <-> WETH uniswapV3 Pool
         deal(multiSigAdmin, 100 ether);
