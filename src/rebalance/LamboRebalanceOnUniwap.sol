@@ -18,16 +18,18 @@ import {IMorphoFlashLoanCallback} from "@morpho/interfaces/IMorphoCallbacks.sol"
 contract LamboRebalanceOnUniwap is Initializable, UUPSUpgradeable, OwnableUpgradeable, ReentrancyGuardUpgradeable, IMorphoFlashLoanCallback {
     using SafeERC20 for IERC20;
 
-    uint256 private constant _BUY_MASK = 1 << 255; // Mask for identifying if the swap is one-for-zero
-    uint256 private constant _SELL_MASK = 0; // Mask for identifying if the swap is one-for-zero
+    uint256 private constant _ONE_FOR_ZERO_MASK = 1 << 255;
+    
+    // uint256 private constant _BUY_MASK = 1 << 255; // Mask for identifying if the swap is one-for-zero
+    // uint256 private constant _SELL_MASK = 0; // Mask for identifying if the swap is one-for-zero
 
-    address public constant weth = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
+    address public constant WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
     address public constant morphoVault = 0xBBBBBbbBBb9cC5e90e3b3Af64bdAF62C37EEFFCb;
     address public constant quoter = 0x5e55C9e631FAE526cd4B0526C4818D6e0a9eF0e3;
     address public constant OKXRouter = 0x7D0CcAa3Fac1e5A943c5168b6CEd828691b46B36;
     address public constant OKXTokenApprove = 0x40aA958dd87FC8305b97f2BA922CDdCa374bcD7f;
 
-    address public veth;
+    address public VETH;
     address public uniswapPool;
     uint24 public fee;
 
@@ -40,7 +42,7 @@ contract LamboRebalanceOnUniwap is Initializable, UUPSUpgradeable, OwnableUpgrad
         __ReentrancyGuard_init();
 
         fee = _fee;
-        veth = _vETH;
+        VETH = _vETH;
         uniswapPool = _uniswap;
     }
 
@@ -53,52 +55,59 @@ contract LamboRebalanceOnUniwap is Initializable, UUPSUpgradeable, OwnableUpgrad
         }
     }
 
-    function rebalance(uint256 directionMask, uint256 amountIn, uint256 amountOut) external nonReentrant {
-        uint256 balanceBefore = IERC20(weth).balanceOf(address(this));
-        bytes memory data = abi.encode(directionMask, amountIn, amountOut);
-        IMorpho(morphoVault).flashLoan(weth, amountIn, data);
-        uint256 balanceAfter = IERC20(weth).balanceOf(address(this));
+    function rebalance(bool isBuy, uint256 amountIn) external nonReentrant {
+        uint256 balanceBefore = IERC20(WETH).balanceOf(address(this));
+        bytes memory data = abi.encode(isBuy, amountIn);
+        IMorpho(morphoVault).flashLoan(WETH, amountIn, data);
+        uint256 balanceAfter = IERC20(WETH).balanceOf(address(this));
         uint256 profit = balanceAfter - balanceBefore;
         require(profit > 0, "No profit made");
     }
 
     function onMorphoFlashLoan(uint256 assets, bytes calldata data) external {
         require(msg.sender == address(morphoVault), "Caller is not morphoVault");
-        (uint256 directionMask, uint256 amountIn, uint256 amountOut) = abi.decode(data, (uint256, uint256, uint256));
+        (bool isBuy, uint256 amountIn) = abi.decode(data, (bool, uint256));
         require(amountIn == assets, "Amount in does not match assets");
 
-        uint256 _v3pool = uint256(uint160(uniswapPool)) | (directionMask);
-        uint256[] memory pools = new uint256[](1);
-        pools[0] = _v3pool;
-
-        if (directionMask == _BUY_MASK) {
-            _executeBuy(amountIn, pools);
+        if (isBuy) {
+            _executeBuy(amountIn);
         } else {
-            _executeSell(amountIn, pools);
+            _executeSell(amountIn);
         }
 
-        require(IERC20(weth).approve(address(morphoVault), assets), "Approve failed");
+        require(IERC20(WETH).approve(address(morphoVault), assets), "Approve failed");
     }
 
-    function _executeBuy(uint256 amountIn, uint256[] memory pools) internal {
+    function _executeBuy(uint256 amountIn) internal {
         uint256 initialBalance = address(this).balance;
 
         // Execute buy
-        require(IERC20(weth).approve(address(OKXTokenApprove), amountIn), "Approve failed");
+        require(IERC20(WETH).approve(address(OKXTokenApprove), amountIn), "Approve failed");
+
+        uint256 directionMask = VETH < WETH ? _ONE_FOR_ZERO_MASK : 0;
+        uint256 _v3pool = uint256(uint160(uniswapPool)) | (directionMask);
+        uint256[] memory pools = new uint256[](1);
+        pools[0] = _v3pool;
         uint256 uniswapV3AmountOut = IDexRouter(OKXRouter).uniswapV3SwapTo(uint256(uint160(address(this))), amountIn, 0, pools);
-        VirtualToken(veth).cashOut(uniswapV3AmountOut);
+        
+        VirtualToken(VETH).cashOut(uniswapV3AmountOut);
 
         // SlowMist [N11]
         uint256 newBalance = address(this).balance - initialBalance;
         if (newBalance > 0) {
-            IWETH(weth).deposit{value: newBalance}();
+            IWETH(WETH).deposit{value: newBalance}();
         }
     }
 
-    function _executeSell(uint256 amountIn, uint256[] memory pools) internal {
-        IWETH(weth).withdraw(amountIn);
-        VirtualToken(veth).cashIn{value: amountIn}(amountIn);
-        require(IERC20(veth).approve(address(OKXTokenApprove), amountIn), "Approve failed");
+    function _executeSell(uint256 amountIn) internal {
+        IWETH(WETH).withdraw(amountIn);
+        VirtualToken(VETH).cashIn{value: amountIn}(amountIn);
+        require(IERC20(VETH).approve(address(OKXTokenApprove), amountIn), "Approve failed");
+
+        uint256 directionMask = VETH < WETH ? 0 : _ONE_FOR_ZERO_MASK;
+        uint256 _v3pool = uint256(uint160(uniswapPool)) | (directionMask);
+        uint256[] memory pools = new uint256[](1);
+        pools[0] = _v3pool;
         IDexRouter(OKXRouter).uniswapV3SwapTo(uint256(uint160(address(this))), amountIn, 0, pools);
     }
 
@@ -111,8 +120,8 @@ contract LamboRebalanceOnUniwap is Initializable, UUPSUpgradeable, OwnableUpgrad
     }
 
     function _getTokenBalances() internal view returns (uint256 wethBalance, uint256 vethBalance) {
-        wethBalance = IERC20(weth).balanceOf(uniswapPool);
-        vethBalance = IERC20(veth).balanceOf(uniswapPool);
+        wethBalance = IERC20(WETH).balanceOf(uniswapPool);
+        vethBalance = IERC20(VETH).balanceOf(uniswapPool);
     }
 
     function _getTokenInOut() internal view returns (address tokenIn, address tokenOut, uint256 amountIn) {
@@ -121,12 +130,12 @@ contract LamboRebalanceOnUniwap is Initializable, UUPSUpgradeable, OwnableUpgrad
 
         if (vethBalance > targetBalance) {
             amountIn = vethBalance - targetBalance;
-            tokenIn = weth;
-            tokenOut = veth;
+            tokenIn = WETH;
+            tokenOut = VETH;
         } else {
             amountIn = wethBalance - targetBalance;
-            tokenIn = veth;
-            tokenOut = weth;
+            tokenIn = VETH;
+            tokenOut = WETH;
         }
 
         require(amountIn > 0, "amountIn must be greater than zero");
@@ -143,7 +152,7 @@ contract LamboRebalanceOnUniwap is Initializable, UUPSUpgradeable, OwnableUpgrad
                 sqrtPriceLimitX96: 0
             })
         );
-        directionMask = (tokenIn == weth) ? _BUY_MASK : _SELL_MASK;
+        directionMask = (tokenIn == WETH) ? _ONE_FOR_ZERO_MASK : 0;
     }
 
     receive() external payable {}

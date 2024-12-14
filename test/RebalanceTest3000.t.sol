@@ -118,7 +118,7 @@ contract RebalanceTest3000 is Test {
         uint256 before_uniswapPoolWETHBalance = IERC20(WETH).balanceOf(uniswapPool);
         uint256 before_uniswapPoolVETHBalance = IERC20(VETH).balanceOf(uniswapPool);
 
-        lamboRebalance.rebalance(directionMask, amountIn, amountOut);
+        lamboRebalance.rebalance(directionMask > 0, amountIn);
 
         uint256 initialBalance = IERC20(WETH).balanceOf(address(this));
         lamboRebalance.extractProfit(address(this), WETH);
@@ -161,7 +161,7 @@ contract RebalanceTest3000 is Test {
         uint256 before_uniswapPoolWETHBalance = IERC20(WETH).balanceOf(uniswapPool);
         uint256 before_uniswapPoolVETHBalance = IERC20(VETH).balanceOf(uniswapPool);
 
-        lamboRebalance.rebalance(directionMask, amountIn, amountOut);
+        lamboRebalance.rebalance(directionMask > 0, amountIn);
 
         uint256 initialBalance = IERC20(WETH).balanceOf(address(this)) + IERC20(VETH).balanceOf(address(this));
         lamboRebalance.extractProfit(address(this), WETH);
