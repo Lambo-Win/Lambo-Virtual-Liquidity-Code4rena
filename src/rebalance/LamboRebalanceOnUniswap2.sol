@@ -12,6 +12,7 @@ import {IMorphoFlashLoanCallback} from "@morpho/interfaces/IMorphoCallbacks.sol"
 contract LamboRebalanceOnUniswap2 is IMorphoFlashLoanCallback {
     using SafeERC20 for IERC20;
 
+    address private multiSign;
     address private operator;
     address public immutable VETH;
     address public immutable VETHWETHPool;
@@ -30,10 +31,11 @@ contract LamboRebalanceOnUniswap2 is IMorphoFlashLoanCallback {
         VETH = _vETH;
         VETHWETHPool = _uniswap;
         operator = _operator;
+        multiSign = _multiSign;
     }
 
     modifier onlyMultiSign() {
-        require(msg.sender == operator, "Caller is not the multisign");
+        require(msg.sender == multiSign, "Caller is not the multisign");
         _;
     }
 

@@ -75,28 +75,28 @@ contract Rebalance2Test3000 is Test {
         });
 
         INonfungiblePositionManager(NonfungiblePositionManager).mint(params);
-
-  
     }
 
     function test0() public {
-        uint256 amount = 422 ether;
+        uint256 amount = 230 ether;
         uint256 _v3pool = uint256(uint160(uniswapPool)) | (_ONE_FOR_ZERO_MASK);
         uint256[] memory pools = new uint256[](1);
         pools[0] = _v3pool;
         uint256 amountOut0 = IDexRouter(OKXRouter).uniswapV3SwapTo{value: amount}(uint256(uint160(multiSign)), amount, 0, pools);
-        console.log("user amountOut0", amountOut0);
+        (uint160 sqrtPriceX96, int24 tick, , , , , ) = IUniswapV3Pool(uniswapPool).slot0();
+        console.log(sqrtPriceX96);
+        // 1.0061056125537582
 
         lamboRebalance.rebalnce();
 
-        (uint160 sqrtPriceX96, int24 tick, , , , , ) = IUniswapV3Pool(uniswapPool).slot0();
+        (sqrtPriceX96, tick, , , , , ) = IUniswapV3Pool(uniswapPool).slot0();
         require(sqrtPriceX96 == targetPrice, "rebalance target error");
 
         console.log(IERC20(WETH).balanceOf(address(lamboRebalance)));
     }
 
     function test1() public {
-        uint256 amount = 422 ether;
+        uint256 amount = 230 ether;
         uint256 _v3pool = uint256(uint160(uniswapPool));
         uint256[] memory pools = new uint256[](1);
         pools[0] = _v3pool;
@@ -104,11 +104,13 @@ contract Rebalance2Test3000 is Test {
         deal(VETH, address(this), amount);
         IERC20(VETH).approve(address(OKXTokenApprove), amount);
         uint256 amountOut0 = IDexRouter(OKXRouter).uniswapV3SwapTo(uint256(uint160(multiSign)), amount, 0, pools);
-        console.log("user amountOut0", amountOut0);
-        
+        (uint160 sqrtPriceX96, int24 tick, , , , , ) = IUniswapV3Pool(uniswapPool).slot0();
+        console.log(sqrtPriceX96);
+        // 0.9939314397240459
+
         lamboRebalance.rebalnce();
 
-        (uint160 sqrtPriceX96, int24 tick, , , , , ) = IUniswapV3Pool(uniswapPool).slot0();
+        (sqrtPriceX96,  tick, , , , , ) = IUniswapV3Pool(uniswapPool).slot0();
         require(sqrtPriceX96 == targetPrice, "rebalance target error");
         console.log(IERC20(WETH).balanceOf(address(lamboRebalance)));
 
