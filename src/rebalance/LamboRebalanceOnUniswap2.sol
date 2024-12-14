@@ -5,11 +5,12 @@ import {IQuoter} from "../interfaces/Uniswap/IQuoter.sol";
 import {IMorpho} from "@morpho/interfaces/IMorpho.sol";
 import {IWETH} from "../interfaces/IWETH.sol";
 import {VirtualToken} from "../VirtualToken.sol";
+import "@openzeppelin/contracts/access/AccessControl.sol";
 
 import {IUniswapV3Pool} from "../interfaces/Uniswap/IUniswapV3Pool.sol";
 import {IMorphoFlashLoanCallback} from "@morpho/interfaces/IMorphoCallbacks.sol";
 
-contract LamboRebalanceOnUniswap2 is IMorphoFlashLoanCallback {
+contract LamboRebalanceOnUniswap2 is IMorphoFlashLoanCallback, AccessControl {
     using SafeERC20 for IERC20;
 
     address private multiSign;
@@ -23,25 +24,20 @@ contract LamboRebalanceOnUniswap2 is IMorphoFlashLoanCallback {
     // price = 1, targetPrice = 1 * 2^96 = 2^96
     uint160 public constant targetPrice = 79228162514264337593543950336;
 
+    // Set Operator
+    bytes32 public constant OPERATOR_ROLE = keccak256("INFINI_BACKEND_ROLE");
+]
     constructor(address _multiSign, address _operator, address _vETH, address _uniswap) {
         require(_multiSign != address(0), "Invalid _multiSign address");
         require(_vETH != address(0), "Invalid _vETH address");
         require(_uniswap != address(0), "Invalid _uniswap address");
 
+        // MutlSign is the supper admin
+        _grantRole(DEFAULT_ADMIN_ROLE, multiSign);
+        _grantRole(OPERATOR_ROLE, _operator);
+
         VETH = _vETH;
         VETHWETHPool = _uniswap;
-        operator = _operator;
-        multiSign = _multiSign;
-    }
-
-    modifier onlyMultiSign() {
-        require(msg.sender == multiSign, "Caller is not the multisign");
-        _;
-    }
-
-    modifier onlyOperator() {
-        require(msg.sender == operator, "Caller is not the operator");
-        _;
     }
 
     modifier onlyVETHWETHPool() {
@@ -49,7 +45,12 @@ contract LamboRebalanceOnUniswap2 is IMorphoFlashLoanCallback {
         _;
     }
 
-    function extractProfit(address to, address token) external onlyMultiSign {
+    modifier onlyMorphoVault() {
+        require(msg.sender == morphoVault, "Caller is not the morphoVault");
+        _;
+    }
+
+    function extractProfit(address to, address token) external onlyRole(DEFAULT_ADMIN_ROLE) {
         uint256 balance = IERC20(token).balanceOf(address(this));
         if (balance > 0) {
             IERC20(token).safeTransfer(to, balance);
@@ -57,7 +58,7 @@ contract LamboRebalanceOnUniswap2 is IMorphoFlashLoanCallback {
     }
 
     // rebalance the sqrtPrice to targetPrice (1:1)
-    function rebalnce() external onlyOperator {
+    function rebalnce() external onlyRole(OPERATOR_ROLE) {
         (bool zeroForOne, , address tokenIn, address tokenOut) = _getDirection();
 
         // choose a large amount to rebalance, amountOut < sellAmount naturally.
@@ -71,8 +72,7 @@ contract LamboRebalanceOnUniswap2 is IMorphoFlashLoanCallback {
         require(currentSqrtPriceX96 == targetPrice, "rebalance target error");
     }
 
-    function onMorphoFlashLoan(uint256 assets, bytes calldata data) external {
-        require(msg.sender == address(morphoVault), "Caller is not morphoVault");
+    function onMorphoFlashLoan(uint256 assets, bytes calldata data) external onlyMorphoVault {
         (bool zeroForOne, uint256 sellAmount, address tokenIn, address tokenOut) = abi.decode(data, (bool, uint256, address, address));
 
         // loan `assets` amount of WETH
